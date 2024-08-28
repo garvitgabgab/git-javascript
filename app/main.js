@@ -2,9 +2,6 @@ const fs = require("fs");
 const path = require("path");
 const zlib = require("zlib");
 
-// You can use print statements as follows for debugging, they'll be visible when running tests.
-console.log("Logs from your program will appear here!");
-
 // Uncomment this block to pass the first stage
 const command = process.argv[2];
 
@@ -38,7 +35,7 @@ function createGitDirectory() {
 
 function prettyPrintObject(blobSHA) {
   const blobPath = path.join(process.cwd(), ".git", "objects", blobSHA.slice(0, 2), blobSHA.slice(2));
-  
+
   // Read the blob file in binary format
   const compressedData = fs.readFileSync(blobPath);
 
