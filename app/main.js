@@ -3,7 +3,10 @@ const path = require("path");
 const zlib = require("zlib");
 const crypto = require("crypto");
 
-// Uncomment this block to pass the first stage
+// You can use print statements as follows for debugging, they'll be visible when running tests.
+// console.log("Logs from your program will appear here!");
+
+// Get command line arguments
 const command = process.argv[2];
 
 switch (command) {
@@ -23,9 +26,9 @@ switch (command) {
 
   case "hash-object":
     const writeFlag = process.argv[3];
-    const filePath = process.argv[4];
+    const fileName = process.argv[4];
     if (writeFlag === "-w") {
-      hashObject(filePath);
+      hashObject(fileName);
     } else {
       throw new Error(`Unknown flag ${writeFlag}`);
     }
@@ -46,48 +49,28 @@ function createGitDirectory() {
 
 function prettyPrintObject(blobSHA) {
   const blobPath = path.join(process.cwd(), ".git", "objects", blobSHA.slice(0, 2), blobSHA.slice(2));
-
-  // Read the blob file in binary format
-  const compressedData = fs.readFileSync(blobPath);
-
-  // Decompress the blob object
-  const decompressedData = zlib.inflateSync(compressedData);
-
-  // Convert the decompressed data to a string
-  const decompressedStr = decompressedData.toString("utf-8");
-
-  // Extract the actual content by removing the header (e.g., "blob 11\0")
-  const content = decompressedStr.slice(decompressedStr.indexOf("\0") + 1);
-
-  // Print the content without an additional newline
-  process.stdout.write(content);
+  const blobData = fs.readFileSync(blobPath);
+  const decompressedData = zlib.inflateSync(blobData).toString("utf-8");
+  const content = decompressedData.split("\0")[1];
+  process.stdout.write(content); // No newline at the end
 }
 
-function hashObject(filePath) {
-  // Read the content of the file
-  const content = fs.readFileSync(filePath);
+function hashObject(fileName) {
+  const fileContent = fs.readFileSync(fileName);
+  const header = `blob ${fileContent.length}\0`;
+  const store = header + fileContent;
+  const sha1Hash = crypto.createHash("sha1").update(store).digest("hex");
 
-  // Create the blob object header: "blob <size>\0"
-  const header = `blob ${content.length}\0`;
+  // Create directories for the hash
+  const objectPath = path.join(process.cwd(), ".git", "objects", sha1Hash.slice(0, 2));
+  if (!fs.existsSync(objectPath)) {
+    fs.mkdirSync(objectPath);
+  }
 
-  // Concatenate the header and the content
-  const store = Buffer.concat([Buffer.from(header), content]);
+  // Write the zlib compressed object to disk
+  const filePath = path.join(objectPath, sha1Hash.slice(2));
+  const compressedData = zlib.deflateSync(store);
+  fs.writeFileSync(filePath, compressedData);
 
-  // Compute the SHA-1 hash of the combined header and content
-  const sha1 = crypto.createHash("sha1").update(store).digest("hex");
-
-  // Compress the blob object using zlib
-  const compressedStore = zlib.deflateSync(store);
-
-  // Create the path where the object will be stored
-  const objectPath = path.join(process.cwd(), ".git", "objects", sha1.slice(0, 2), sha1.slice(2));
-
-  // Create the directory if it doesn't exist
-  fs.mkdirSync(path.dirname(objectPath), { recursive: true });
-
-  // Write the compressed blob object to the .git/objects directory
-  fs.writeFileSync(objectPath, compressedStore);
-
-  // Output the SHA-1 hash
-  console.log(sha1);
+  console.log(sha1Hash);
 }
