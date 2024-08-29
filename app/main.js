@@ -4,51 +4,61 @@ const zlib = require("zlib");
 const crypto = require("crypto");
 
 const command = process.argv[2];
+const args = process.argv.slice(3);
 
 switch (command) {
   case "init":
     createGitDirectory();
     break;
+
   case "write-tree":
     writeTree();
     break;
+
   case "cat-file":
-    const flag = process.argv[3];
-    const blobSHA = process.argv[4];
-    if (flag === "-p") {
-      prettyPrintObject(blobSHA);
+    const catFlag = args[0];
+    const catSHA = args[1];
+    if (catFlag === "-p") {
+      prettyPrintObject(catSHA);
     } else {
-      throw new Error(`Unknown flag ${flag}`);
+      throw new Error(`Unknown flag ${catFlag}`);
     }
     break;
+
   case "hash-object":
-    const writeFlag = process.argv[3];
-    const fileName = process.argv[4];
-    if (writeFlag === "-w") {
+    const hashFlag = args[0];
+    const fileName = args[1];
+    if (hashFlag === "-w") {
       console.log(hashObject(fileName));  // Print SHA-1 hash
     } else {
-      throw new Error(`Unknown flag ${writeFlag}`);
+      throw new Error(`Unknown flag ${hashFlag}`);
     }
     break;
+
   case "ls-tree":
-    const lsFlag = process.argv[3];
-    const treeSHA = process.argv[4];
+    const lsFlag = args[0];
+    const treeSHA = args[1];
     if (lsFlag === "--name-only") {
       lsTreeNameOnly(treeSHA);
     } else {
       throw new Error(`Unknown flag ${lsFlag}`);
     }
     break;
+
   default:
     throw new Error(`Unknown command ${command}`);
 }
 
 function createGitDirectory() {
-  fs.mkdirSync(path.join(process.cwd(), ".git"), { recursive: true });
-  fs.mkdirSync(path.join(process.cwd(), ".git", "objects"), { recursive: true });
-  fs.mkdirSync(path.join(process.cwd(), ".git", "refs"), { recursive: true });
+  const gitDir = path.join(process.cwd(), ".git");
+  const objectsDir = path.join(gitDir, "objects");
+  const refsDir = path.join(gitDir, "refs");
 
-  fs.writeFileSync(path.join(process.cwd(), ".git", "HEAD"), "ref: refs/heads/main\n");
+  fs.mkdirSync(gitDir, { recursive: true });
+  fs.mkdirSync(objectsDir, { recursive: true });
+  fs.mkdirSync(refsDir, { recursive: true });
+
+  fs.writeFileSync(path.join(gitDir, "HEAD"), "ref: refs/heads/main\n");
   console.log("Initialized git directory");
 }
 
