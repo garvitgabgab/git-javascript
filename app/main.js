@@ -31,15 +31,9 @@ switch (command) {
     }
     break;
 
-  case "ls-tree":
-    const lsFlag = process.argv[3];
-    const treeSHA = process.argv[4];
-    if (lsFlag === "--name-only") {
-      lsTreeNameOnly(treeSHA);
-    } else {
-      throw new Error(`Unknown flag ${lsFlag}`);
-    }
-    break;
+    case "ls-tree":
+      createTree();
+      break;
 
   default:
     throw new Error(`Unknown command ${command}`);
@@ -80,23 +74,18 @@ function hashObject(fileName) {
   console.log(sha1Hash);
 }
 
-function lsTreeNameOnly(treeSHA) {
-  const treePath = path.join(process.cwd(), ".git", "objects", treeSHA.slice(0, 2), treeSHA.slice(2));
-  const treeData = fs.readFileSync(treePath);
-  const decompressedData = zlib.inflateSync(treeData);
 
-  let index = 0;
-
-  while (index < decompressedData.length) {
-    const modeEnd = decompressedData.indexOf(32, index); // Find space
-    const mode = decompressedData.slice(index, modeEnd).toString(); // Parse mode
-
-    const nameEnd = decompressedData.indexOf(0, modeEnd + 1); // Find null byte
-    const name = decompressedData.slice(modeEnd + 1, nameEnd).toString(); // Parse name
-
-    index = nameEnd + 1 + 20; // Move past the name and SHA to the next entry
-
-    console.log(name); // Output the parsed name
+function createTree() {
+  const flag = process.argv[3];
+  if (flag == "--name-only") {
+      const sha = process.argv[4];
+      const directory = sha.slice(0, 2);
+      const fileName = sha.slice(2);
+      const filePath = path.join(__dirname, ".git", "objects", directory, fileName);
+      let inflatedContent = zlib.inflateSync(fs.readFileSync(filePath)).toString().split('\0');
+      let content = inflatedContent.slice(1).filter(value => value.includes(" "));
+      let names = content.map(value => value.split(" ")[1]);
+      names.forEach((name) => process.stdout.write(`${name}\n`));
   }
 }
 
