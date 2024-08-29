@@ -121,7 +121,6 @@ function lsTreeNameOnly(treeSHA) {
   entries.forEach((entry) => console.log(entry));
 }
 
-
 function writeTree() {
   const rootTreeSHA = writeTreeRecursive(process.cwd());
   console.log(rootTreeSHA);
@@ -140,7 +139,7 @@ function writeTreeRecursive(dir) {
 
     if (stats.isDirectory()) {
       const subTreeSHA = writeTreeRecursive(filePath);
-      const mode = "040000";
+      const mode = "040000"; // Directory mode
       treeEntries.push(Buffer.concat([Buffer.from(`${mode} ${file}\0`), Buffer.from(subTreeSHA, "hex")]));
     } else if (stats.isFile()) {
       const blobSHA = hashObject(filePath);
@@ -166,22 +165,4 @@ function writeTreeRecursive(dir) {
   fs.writeFileSync(filePath, compressedData);
 
   return treeSHA;
-}
-
-function hashObject(filePath) {
-  const fileContent = fs.readFileSync(filePath);
-  const header = `blob ${fileContent.length}\0`;
-  const store = Buffer.concat([Buffer.from(header), fileContent]);
-  const sha1Hash = crypto.createHash("sha1").update(store).digest("hex");
-
-  const objectPath = path.join(process.cwd(), ".git", "objects", sha1Hash.slice(0, 2));
-  if (!fs.existsSync(objectPath)) {
-    fs.mkdirSync(objectPath);
-  }
-
-  const filePathHash = path.join(objectPath, sha1Hash.slice(2));
-  const compressedData = zlib.deflateSync(store);
-  fs.writeFileSync(filePathHash, compressedData);
-
-  return sha1Hash;
 }
