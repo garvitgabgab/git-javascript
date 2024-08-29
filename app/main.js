@@ -3,7 +3,6 @@ const path = require("path");
 const zlib = require("zlib");
 const crypto = require("crypto");
 
-console.log("Logs from your program will appear here!");
 
 const command = process.argv[2];
 
@@ -95,8 +94,8 @@ function lsTreeNameOnly(treeSHA) {
     const name = decompressedData.slice(modeEnd + 1, nameEnd).toString();
 
     const shaStart = nameEnd + 1;
-    index = shaStart + 20; // 20-byte SHA
+    index = shaStart + 20; // Move past the 20-byte SHA hash to the next entry
 
-    console.log(name);
+    console.log(name);  // Output the name of each entry
   }
 }
