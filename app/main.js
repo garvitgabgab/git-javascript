@@ -40,6 +40,9 @@ switch (command) {
       throw new Error(`Unknown flag ${lsFlag}`);
     }
     break;
+    case "write-tree":
+    writeTree();
+    break;
 
   default:
     throw new Error(`Unknown command ${command}`);
@@ -119,3 +122,68 @@ function lsTreeNameOnly(treeSHA) {
 }
 
 
+function writeTree() {
+  const rootTreeSHA = writeTreeRecursive(process.cwd());
+  console.log(rootTreeSHA);
+}
+
+function writeTreeRecursive(dir) {
+  let treeEntries = [];
+
+  const files = fs.readdirSync(dir);
+
+  files.forEach(file => {
+    if (file === ".git") {
+      return; // Skip .git directory
+    }
+
+    const filePath = path.join(dir, file);
+    const stats = fs.statSync(filePath);
+
+    if (stats.isDirectory()) {
+      const subTreeSHA = writeTreeRecursive(filePath);
+      const mode = "040000";
+      treeEntries.push(`${mode} ${file}\0${Buffer.from(subTreeSHA, "hex")}`);
+    } else if (stats.isFile()) {
+      const blobSHA = hashObject(filePath);
+      const mode = stats.mode & 0o111 ? "100755" : "100644"; // Executable or regular file
+      treeEntries.push(`${mode} ${file}\0${Buffer.from(blobSHA, "hex")}`);
+    }
+  });
+
+  // Concatenate tree entries and calculate tree SHA
+  const treeData = Buffer.concat(treeEntries.map(entry => Buffer.from(entry)));
+  const header = Buffer.from(`tree ${treeData.length}\0`);
+  const store = Buffer.concat([header, treeData]);
+
+  const treeSHA = crypto.createHash("sha1").update(store).digest("hex");
+
+  const objectPath = path.join(process.cwd(), ".git", "objects", treeSHA.slice(0, 2));
+  if (!fs.existsSync(objectPath)) {
+    fs.mkdirSync(objectPath);
+  }
+
+  const filePath = path.join(objectPath, treeSHA.slice(2));
+  const compressedData = zlib.deflateSync(store);
+  fs.writeFileSync(filePath, compressedData);
+
+  return treeSHA;
+}
+
+function hashObject(filePath) {
+  const fileContent = fs.readFileSync(filePath);
+  const header = `blob ${fileContent.length}\0`;
+  const store = Buffer.concat([Buffer.from(header), fileContent]);
+  const sha1Hash = crypto.createHash("sha1").update(store).digest("hex");
+
+  const objectPath = path.join(process.cwd(), ".git", "objects", sha1Hash.slice(0, 2));
+  if (!fs.existsSync(objectPath)) {
+    fs.mkdirSync(objectPath);
+  }
+
+  const filePathHash = path.join(objectPath, sha1Hash.slice(2));
+  const compressedData = zlib.deflateSync(store);
+  fs.writeFileSync(filePathHash, compressedData);
+
+  return sha1Hash;
+}
