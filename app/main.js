@@ -70,26 +70,19 @@ function writeTreeRecursive(dir) {
 
     if (stats.isDirectory()) {
       const subTreeSHA = writeTreeRecursive(filePath);
-      const mode = "040000"; // Directory mode
-      treeEntries.push(Buffer.concat([
-        Buffer.from(`${mode} ${file}\0`),
-        Buffer.from(subTreeSHA, "hex")
-      ]));
+      const mode = "40000"; // Directory mode without leading zero
+      treeEntries.push(Buffer.concat([Buffer.from(`${mode} ${file}\0`), Buffer.from(subTreeSHA, "hex")]));
     } else if (stats.isFile()) {
       const blobSHA = hashObject(filePath);
       const mode = (stats.mode & 0o111) ? "100755" : "100644"; // Executable or regular file
-      treeEntries.push(Buffer.concat([
-        Buffer.from(`${mode} ${file}\0`),
-        Buffer.from(blobSHA, "hex")
-      ]));
+      treeEntries.push(Buffer.concat([Buffer.from(`${mode} ${file}\0`), Buffer.from(blobSHA, "hex")]));
     }
   });
 
   // Concatenate tree entries and calculate tree SHA
   const treeData = Buffer.concat(treeEntries);
-  const header = `tree ${treeData.length}`;
-  const headerBuffer = Buffer.from(`${header}\0`);
-  const store = Buffer.concat([headerBuffer, treeData]);
+  const header = Buffer.from(`tree ${treeData.length}\0`);  // Ensure correct header length
+  const store = Buffer.concat([header, treeData]);
 
   const treeSHA = crypto.createHash("sha1").update(store).digest("hex");
 
@@ -104,6 +97,7 @@ function writeTreeRecursive(dir) {
 
   return treeSHA;
 }
+
 
 function hashObject(filePath) {
   const fileContent = fs.readFileSync(filePath);
