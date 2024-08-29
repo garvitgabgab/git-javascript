@@ -86,16 +86,17 @@ function lsTreeNameOnly(treeSHA) {
   const decompressedData = zlib.inflateSync(treeData);
 
   let index = 0;
+
   while (index < decompressedData.length) {
-    const modeEnd = decompressedData.indexOf(32, index); // 32 is the ASCII code for space
-    const mode = decompressedData.slice(index, modeEnd).toString();
+    const modeEnd = decompressedData.indexOf(32, index); // Find space
+    const mode = decompressedData.slice(index, modeEnd).toString(); // Parse mode
 
-    const nameEnd = decompressedData.indexOf(0, modeEnd + 1); // 0 is the null byte
-    const name = decompressedData.slice(modeEnd + 1, nameEnd).toString();
+    const nameEnd = decompressedData.indexOf(0, modeEnd + 1); // Find null byte
+    const name = decompressedData.slice(modeEnd + 1, nameEnd).toString(); // Parse name
 
-    const shaStart = nameEnd + 1;
-    index = shaStart + 20; // Move past the 20-byte SHA hash to the next entry
+    index = nameEnd + 1 + 20; // Move past the name and SHA to the next entry
 
-    console.log(name);  // Output the name of each entry
+    console.log(name); // Output the parsed name
   }
 }
+
