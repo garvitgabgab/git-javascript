@@ -3,10 +3,8 @@ const path = require("path");
 const zlib = require("zlib");
 const crypto = require("crypto");
 
-// You can use print statements as follows for debugging, they'll be visible when running tests.
-// console.log("Logs from your program will appear here!");
+console.log("Logs from your program will appear here!");
 
-// Get command line arguments
 const command = process.argv[2];
 
 switch (command) {
@@ -31,6 +29,16 @@ switch (command) {
       hashObject(fileName);
     } else {
       throw new Error(`Unknown flag ${writeFlag}`);
+    }
+    break;
+
+  case "ls-tree":
+    const lsFlag = process.argv[3];
+    const treeSHA = process.argv[4];
+    if (lsFlag === "--name-only") {
+      lsTreeNameOnly(treeSHA);
+    } else {
+      throw new Error(`Unknown flag ${lsFlag}`);
     }
     break;
 
@@ -61,16 +69,34 @@ function hashObject(fileName) {
   const store = header + fileContent;
   const sha1Hash = crypto.createHash("sha1").update(store).digest("hex");
 
-  // Create directories for the hash
   const objectPath = path.join(process.cwd(), ".git", "objects", sha1Hash.slice(0, 2));
   if (!fs.existsSync(objectPath)) {
     fs.mkdirSync(objectPath);
   }
 
-  // Write the zlib compressed object to disk
   const filePath = path.join(objectPath, sha1Hash.slice(2));
   const compressedData = zlib.deflateSync(store);
   fs.writeFileSync(filePath, compressedData);
 
   console.log(sha1Hash);
+}
+
+function lsTreeNameOnly(treeSHA) {
+  const treePath = path.join(process.cwd(), ".git", "objects", treeSHA.slice(0, 2), treeSHA.slice(2));
+  const treeData = fs.readFileSync(treePath);
+  const decompressedData = zlib.inflateSync(treeData);
+
+  let index = 0;
+  while (index < decompressedData.length) {
+    const modeEnd = decompressedData.indexOf(32, index); // 32 is the ASCII code for space
+    const mode = decompressedData.slice(index, modeEnd).toString();
+
+    const nameEnd = decompressedData.indexOf(0, modeEnd + 1); // 0 is the null byte
+    const name = decompressedData.slice(modeEnd + 1, nameEnd).toString();
+
+    const shaStart = nameEnd + 1;
+    index = shaStart + 20; // 20-byte SHA
+
+    console.log(name);
+  }
 }
