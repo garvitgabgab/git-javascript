@@ -133,9 +133,7 @@ function writeTreeRecursive(dir) {
   const files = fs.readdirSync(dir);
 
   files.forEach(file => {
-    if (file === ".git") {
-      return; // Skip .git directory
-    }
+    if (file === ".git") return; // Skip .git directory
 
     const filePath = path.join(dir, file);
     const stats = fs.statSync(filePath);
@@ -143,16 +141,16 @@ function writeTreeRecursive(dir) {
     if (stats.isDirectory()) {
       const subTreeSHA = writeTreeRecursive(filePath);
       const mode = "040000";
-      treeEntries.push(`${mode} ${file}\0${Buffer.from(subTreeSHA, "hex")}`);
+      treeEntries.push(Buffer.concat([Buffer.from(`${mode} ${file}\0`), Buffer.from(subTreeSHA, "hex")]));
     } else if (stats.isFile()) {
       const blobSHA = hashObject(filePath);
-      const mode = stats.mode & 0o111 ? "100755" : "100644"; // Executable or regular file
-      treeEntries.push(`${mode} ${file}\0${Buffer.from(blobSHA, "hex")}`);
+      const mode = (stats.mode & 0o111) ? "100755" : "100644"; // Executable or regular file
+      treeEntries.push(Buffer.concat([Buffer.from(`${mode} ${file}\0`), Buffer.from(blobSHA, "hex")]));
     }
   });
 
   // Concatenate tree entries and calculate tree SHA
-  const treeData = Buffer.concat(treeEntries.map(entry => Buffer.from(entry)));
+  const treeData = Buffer.concat(treeEntries);
   const header = Buffer.from(`tree ${treeData.length}\0`);
   const store = Buffer.concat([header, treeData]);
 
