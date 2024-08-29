@@ -140,13 +140,11 @@ function writeTreeRecursive(dir) {
     if (stats.isDirectory()) {
       const subTreeSHA = writeTreeRecursive(filePath);
       const mode = "040000";
-      const formattedSize = subTreeSHA.length.toString().padStart(6, '0'); // Pad size with zeros
-      treeEntries.push(Buffer.concat([Buffer.from(`${mode} ${formattedSize} ${file}\0`), Buffer.from(subTreeSHA, "hex")]));
+      treeEntries.push(Buffer.concat([Buffer.from(`${mode} ${file}\0`), Buffer.from(subTreeSHA, "hex")]));
     } else if (stats.isFile()) {
       const blobSHA = hashObject(filePath);
       const mode = (stats.mode & 0o111) ? "100755" : "100644"; // Executable or regular file
-      const formattedSize = blobSHA.length.toString().padStart(6, '0'); // Pad size with zeros
-      treeEntries.push(Buffer.concat([Buffer.from(`${mode} ${formattedSize} ${file}\0`), Buffer.from(blobSHA, "hex")]));
+      treeEntries.push(Buffer.concat([Buffer.from(`${mode} ${file}\0`), Buffer.from(blobSHA, "hex")]));
     }
   });
 
@@ -173,6 +171,7 @@ function hashObject(filePath) {
   const fileContent = fs.readFileSync(filePath);
   const header = Buffer.from(`blob ${fileContent.length}\0`);
   const store = Buffer.concat([header, fileContent]);
+
   const sha1Hash = crypto.createHash("sha1").update(store).digest("hex");
 
   const objectPath = path.join(process.cwd(), ".git", "objects", sha1Hash.slice(0, 2));
