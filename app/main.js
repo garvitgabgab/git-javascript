@@ -100,22 +100,35 @@ function writeTreeRecursive(dir) {
 
 
 function hashObject(filePath) {
-  const fileContent = fs.readFileSync(filePath);
-  const header = `blob ${fileContent.length}\0`;
-  const store = Buffer.concat([Buffer.from(header), fileContent]);
-  const sha1Hash = crypto.createHash("sha1").update(store).digest("hex");
+  // Read the file content
+  const content = fs.readFileSync(filePath);
 
-  const objectPath = path.join(process.cwd(), ".git", "objects", sha1Hash.slice(0, 2));
+  // Create the blob header
+  const header = `blob ${content.length}\0`;
+  
+  // Combine header and content
+  const store = Buffer.concat([Buffer.from(header), content]);
+
+  // Compute SHA1 hash of the blob data
+  const sha1 = crypto.createHash("sha1").update(store).digest("hex");
+
+  // Construct object path using SHA1 hash
+  const objectPath = path.join(".git", "objects", sha1.slice(0, 2));
+  const objectFilePath = path.join(objectPath, sha1.slice(2));
+
+  // Check if directory exists; if not, create it
   if (!fs.existsSync(objectPath)) {
-    fs.mkdirSync(objectPath);
+      fs.mkdirSync(objectPath);
   }
 
-  const filePathHash = path.join(objectPath, sha1Hash.slice(2));
+  // Compress and write the object to the Git object store
   const compressedData = zlib.deflateSync(store);
-  fs.writeFileSync(filePathHash, compressedData);
+  fs.writeFileSync(objectFilePath, compressedData);
 
-  return sha1Hash;
+  // Output the SHA1 hash
+  console.log(sha1);
 }
+
 
 function prettyPrintObject(blobSHA) {
   const blobPath = path.join(process.cwd(), ".git", "objects", blobSHA.slice(0, 2), blobSHA.slice(2));
