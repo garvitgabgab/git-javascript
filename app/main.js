@@ -85,11 +85,6 @@ function listTree(treeHash) {
   entries.forEach(([, , name]) => console.log(name));
 }
 
-function writeTree() {
-  const rootHash = writeTreeForPath(".");
-  process.stdout.write(rootHash);
-}
-
 function writeTreeForPath(dirPath) {
   const entries = readdirSync(dirPath).filter(name => name !== ".git").map(name => {
     const fullPath = join(dirPath, name);
@@ -99,17 +94,25 @@ function writeTreeForPath(dirPath) {
       const treeHash = writeTreeForPath(fullPath);
       return [`040000`, name, treeHash];
     } else if (stats.isFile()) {
-      const blobHash = hashObject(fullPath);
-      const mode = (stats.mode & 0o111) ? "100755" : "100644";
+      const blobHash = hashObject(fullPath); // Ensure hashObject returns a valid hash
+      const mode = (stats.mode & 0o111) ? "100755" : "100644"; // Correctly determine mode
       return [mode, name, blobHash];
     }
 
-    return [];
+    return []; // Handle cases where the file is neither a file nor a directory
   });
 
-  const entryBuffers = entries.map(([mode, name, hash]) => 
-    Buffer.concat([Buffer.from(`${mode} ${name}\0`), Buffer.from(hash, "hex")])
-  );
+  // Debug: Check the content of entries before proceeding
+  console.log("Entries:", entries);
+
+  // Ensure that all entries have the expected values
+  const entryBuffers = entries.map(([mode, name, hash]) => {
+    if (!mode || !name || !hash) {
+      throw new Error(`Invalid entry data: mode=${mode}, name=${name}, hash=${hash}`);
+    }
+    return Buffer.concat([Buffer.from(`${mode} ${name}\0`), Buffer.from(hash, "hex")]);
+  });
+
   const treeData = Buffer.concat(entryBuffers);
   const header = Buffer.from(`tree ${treeData.length}\0`);
   const tree = Buffer.concat([header, treeData]);
