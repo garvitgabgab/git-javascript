@@ -138,11 +138,19 @@ function writeTreeForPath(dirPath) {
       }
 
       return [];
-    });
+    })
+    .filter(entry => entry.length > 0); // Filter out empty entries
 
-  const entryBuffers = entries.map(([mode, name, hash]) =>
-    Buffer.concat([Buffer.from(`${mode} ${name}\0`), Buffer.from(hash, "hex")])
-  );
+  const entryBuffers = entries.map(([mode, name, hash]) => {
+    if (!mode || !name || !hash) {
+      throw new Error(`Invalid entry: mode=${mode}, name=${name}, hash=${hash}`);
+    }
+    return Buffer.concat([
+      Buffer.from(`${mode} ${name}\0`),
+      Buffer.from(hash, "hex")
+    ]);
+  });
+
   const treeData = Buffer.concat(entryBuffers);
   const header = Buffer.from(`tree ${treeData.length}\0`);
   const tree = Buffer.concat([header, treeData]);
@@ -151,6 +159,8 @@ function writeTreeForPath(dirPath) {
   writeObject(hash, tree);
   return hash;
 }
+
+
 
 function writeObject(hash, content) {
   const dir = path.join(process.cwd(), ".git", "objects", hash.slice(0, 2));
