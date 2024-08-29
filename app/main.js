@@ -86,17 +86,36 @@ function lsTreeNameOnly(treeSHA) {
   const decompressedData = zlib.inflateSync(treeData);
 
   let index = 0;
+  const entries = [];
+
+  // Ensure the decompressed data has the correct tree header
+  if (!decompressedData.slice(0, 4).equals(Buffer.from('tree'))) {
+    throw new Error("Invalid tree object format");
+  }
+
+  // Skip the 'tree <size>\0' header
+  index = decompressedData.indexOf(0) + 1;
 
   while (index < decompressedData.length) {
-    const modeEnd = decompressedData.indexOf(32, index); // Find space
-    const mode = decompressedData.slice(index, modeEnd).toString(); // Parse mode
+    // Find mode
+    const modeEnd = decompressedData.indexOf(32, index); // Space ' ' delimiter
+    const mode = decompressedData.slice(index, modeEnd).toString(); // Mode is a string
 
-    const nameEnd = decompressedData.indexOf(0, modeEnd + 1); // Find null byte
-    const name = decompressedData.slice(modeEnd + 1, nameEnd).toString(); // Parse name
+    // Find name
+    const nameEnd = decompressedData.indexOf(0, modeEnd + 1); // Null byte '\0' delimiter
+    const name = decompressedData.slice(modeEnd + 1, nameEnd).toString(); // Name is a string
 
-    index = nameEnd + 1 + 20; // Move past the name and SHA to the next entry
+    entries.push(name);
 
-    console.log(name); // Output the parsed name
+    // Advance index past the entry (mode + name + null byte + 20-byte SHA1)
+    index = nameEnd + 1 + 20; // Move past the SHA-1 hash
   }
+
+  // Alphabetical sorting
+  entries.sort();
+
+  // Output each name
+  entries.forEach((entry) => console.log(entry));
 }
+
 
