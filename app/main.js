@@ -106,7 +106,7 @@ function lsTreeNameOnly(treeSHA) {
 
     // Find name
     const nameEnd = decompressedData.indexOf(0, modeEnd + 1); // Null byte '\0' delimiter
-    const name = decompressedData.slice(modeEnd + 1, nameEnd).toString(); // Name is a string
+    const name = decompressedData.slice(modeEnd + 1, nameEnd).toString().trim(); // Trim whitespace
 
     entries.push(name);
 
@@ -140,11 +140,13 @@ function writeTreeRecursive(dir) {
     if (stats.isDirectory()) {
       const subTreeSHA = writeTreeRecursive(filePath);
       const mode = "040000";
-      treeEntries.push(Buffer.concat([Buffer.from(`${mode} ${file}\0`), Buffer.from(subTreeSHA, "hex")]));
+      const formattedSize = subTreeSHA.length.toString().padStart(6, '0'); // Pad size with zeros
+      treeEntries.push(Buffer.concat([Buffer.from(`${mode} ${formattedSize} ${file}\0`), Buffer.from(subTreeSHA, "hex")]));
     } else if (stats.isFile()) {
       const blobSHA = hashObject(filePath);
       const mode = (stats.mode & 0o111) ? "100755" : "100644"; // Executable or regular file
-      treeEntries.push(Buffer.concat([Buffer.from(`${mode} ${file}\0`), Buffer.from(blobSHA, "hex")]));
+      const formattedSize = blobSHA.length.toString().padStart(6, '0'); // Pad size with zeros
+      treeEntries.push(Buffer.concat([Buffer.from(`${mode} ${formattedSize} ${file}\0`), Buffer.from(blobSHA, "hex")]));
     }
   });
 
