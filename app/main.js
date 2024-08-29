@@ -59,7 +59,7 @@ function writeTree() {
 
 function writeTreeRecursive(dir) {
   let treeEntries = [];
-  
+
   const files = fs.readdirSync(dir);
 
   files.forEach(file => {
