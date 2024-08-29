@@ -123,11 +123,6 @@ function createTreeObject(){
 }
 
 
-function writeTree() {
-  const rootTreeSHA = writeTreeRecursive(process.cwd());
-  console.log(rootTreeSHA);
-}
-
 function writeTreeRecursive(dir) {
   let treeEntries = [];
 
@@ -159,7 +154,7 @@ function writeTreeRecursive(dir) {
 
   const objectPath = path.join(process.cwd(), ".git", "objects", treeSHA.slice(0, 2));
   if (!fs.existsSync(objectPath)) {
-    fs.mkdirSync(objectPath);
+    fs.mkdirSync(objectPath, { recursive: true });
   }
 
   const filePath = path.join(objectPath, treeSHA.slice(2));
@@ -167,4 +162,23 @@ function writeTreeRecursive(dir) {
   fs.writeFileSync(filePath, compressedData);
 
   return treeSHA;
+}
+
+function hashObject(filePath) {
+  const fileContent = fs.readFileSync(filePath);
+  const header = Buffer.from(`blob ${fileContent.length}\0`);
+  const store = Buffer.concat([header, fileContent]);
+
+  const sha1Hash = crypto.createHash("sha1").update(store).digest("hex");
+
+  const objectPath = path.join(process.cwd(), ".git", "objects", sha1Hash.slice(0, 2));
+  if (!fs.existsSync(objectPath)) {
+    fs.mkdirSync(objectPath, { recursive: true });
+  }
+
+  const filePathHash = path.join(objectPath, sha1Hash.slice(2));
+  const compressedData = zlib.deflateSync(store);
+  fs.writeFileSync(filePathHash, compressedData);
+
+  return sha1Hash;
 }
