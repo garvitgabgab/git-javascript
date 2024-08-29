@@ -1,75 +1,172 @@
+const fs = require("fs");
 const path = require("path");
-const init = require("./modules/init");
-const clone = require("./modules/clone");
-const createCommit = require("./modules/createCommit");
-const catFile = require("./modules/catFile");
-const catTree = require("./modules/catTree");
-const writeBlob = require("./modules/writeBlob");
-const writeTree = require("./modules/writeFolderAsTree");
+const zlib = require("zlib");
+const crypto = require("crypto");
 
-// You can use print statements as follows for debugging, they'll be visible when running tests.
-// Uncomment this block to pass the first stage
 const command = process.argv[2];
-const argvs = process.argv.slice(3);
-const base_path = process.cwd();
+const args = process.argv.slice(3);
 
 switch (command) {
   case "init":
-    init("./");
+    createGitDirectory();
+    break;
+
+  case "write-tree":
+    writeTree();
     break;
 
   case "cat-file":
-    switch (argvs.length) {
-      case 1:
-        catFile(argvs[0]);
-        break;
-      case 2:
-        catFile(argvs[1]);
-        break;
+    const catFlag = args[0];
+    const catSHA = args[1];
+    if (catFlag === "-p") {
+      prettyPrintObject(catSHA);
+    } else {
+      throw new Error(`Unknown flag ${catFlag}`);
     }
     break;
 
   case "hash-object":
-    let blobHash;
-    switch (argvs.length) {
-      case 1:
-        blobHash = writeBlob(true, argvs[0]);
-        console.log(blobHash);
-        break;
-      case 2:
-        blobHash = writeBlob(true, argvs[1]);
-        console.log(blobHash);
-        break;
+    const hashFlag = args[0];
+    const fileName = args[1];
+    if (hashFlag === "-w") {
+      console.log(hashObject(fileName));  // Print SHA-1 hash
+    } else {
+      throw new Error(`Unknown flag ${hashFlag}`);
     }
     break;
 
   case "ls-tree":
-    switch (argvs.length) {
-      case 1:
-        catTree(argvs[0]);
-        break;
-      case 2:
-        catTree(argvs[1]);
-        break;
+    const lsFlag = args[0];
+    const treeSHA = args[1];
+    if (lsFlag === "--name-only") {
+      lsTreeNameOnly(treeSHA);
+    } else {
+      throw new Error(`Unknown flag ${lsFlag}`);
     }
-    break;
-
-  case "write-tree":
-    let treeHash = writeTree("./");
-    process.stdout.write(treeHash);
-    break;
-
-  case "commit-tree":
-    createCommit(argvs[0], argvs[2], argvs[4]);
-    break;
-
-  case "clone":
-    clone(argvs[0], argvs[1]);
     break;
 
   default:
     throw new Error(`Unknown command ${command}`);
 }
 
-// git commitTree <treSHA> -p <commitSHA> -m <message>
-// objects are always better than strings in processing variables
+function createGitDirectory() {
+  const gitDir = path.join(process.cwd(), ".git");
+  const objectsDir = path.join(gitDir, "objects");
+  const refsDir = path.join(gitDir, "refs");
+
+  fs.mkdirSync(gitDir, { recursive: true });
+  fs.mkdirSync(objectsDir, { recursive: true });
+  fs.mkdirSync(refsDir, { recursive: true });
+
+  fs.writeFileSync(path.join(gitDir, "HEAD"), "ref: refs/heads/main\n");
+  console.log("Initialized git directory");
+}
+
+function writeTree() {
+  const rootTreeSHA = writeTreeRecursive(process.cwd());
+  console.log(rootTreeSHA);
+}
+
+function writeTreeRecursive(dir) {
+  let treeEntries = [];
+
+  const files = fs.readdirSync(dir);
+
+  files.forEach(file => {
+    if (file === ".git") return; // Skip .git directory
+
+    const filePath = path.join(dir, file);
+    const stats = fs.statSync(filePath);
+
+    if (stats.isDirectory()) {
+      const subTreeSHA = writeTreeRecursive(filePath);
+      const mode = "040000"; // Directory mode
+      treeEntries.push(Buffer.concat([Buffer.from(`${mode} ${file}\0`), Buffer.from(subTreeSHA, "hex")]));
+    } else if (stats.isFile()) {
+      const blobSHA = hashObject(filePath);
+      const mode = (stats.mode & 0o111) ? "100755" : "100644"; // Executable or regular file
+      treeEntries.push(Buffer.concat([Buffer.from(`${mode} ${file}\0`), Buffer.from(blobSHA, "hex")]));
+    }
+  });
+
+  // Concatenate tree entries and calculate tree SHA
+  const treeData = Buffer.concat(treeEntries);
+  const header = Buffer.from(`tree ${treeData.length}\0`);
+  const store = Buffer.concat([header, treeData]);
+
+  const treeSHA = crypto.createHash("sha1").update(store).digest("hex");
+
+  // Write the zlib-compressed object to the .git/objects directory
+  writeObject(treeSHA, store);
+
+  return treeSHA;
+}
+
+function hashObject(filePath) {
+  const fileContent = fs.readFileSync(filePath);
+  const header = `blob ${fileContent.length}\0`;
+  const store = Buffer.concat([Buffer.from(header), fileContent]);
+  const sha1Hash = crypto.createHash("sha1").update(store).digest("hex");
+
+  // Write the zlib-compressed object to the .git/objects directory
+  writeObject(sha1Hash, store);
+
+  return sha1Hash;
+}
+
+function writeObject(sha, store) {
+  const objectPath = path.join(process.cwd(), ".git", "objects", sha.slice(0, 2));
+  if (!fs.existsSync(objectPath)) {
+    fs.mkdirSync(objectPath);
+  }
+
+  const filePathHash = path.join(objectPath, sha.slice(2));
+  const compressedData = zlib.deflateSync(store);
+  fs.writeFileSync(filePathHash, compressedData);
+}
+
+function prettyPrintObject(blobSHA) {
+  const blobPath = path.join(process.cwd(), ".git", "objects", blobSHA.slice(0, 2), blobSHA.slice(2));
+  const blobData = fs.readFileSync(blobPath);
+  const decompressedData = zlib.inflateSync(blobData).toString("utf-8");
+  const content = decompressedData.split("\0")[1];
+  process.stdout.write(content); // No newline at the end
+}
+
+function lsTreeNameOnly(treeSHA) {
+  const treePath = path.join(process.cwd(), ".git", "objects", treeSHA.slice(0, 2), treeSHA.slice(2));
+  const treeData = fs.readFileSync(treePath);
+  const decompressedData = zlib.inflateSync(treeData);
+
+  let index = 0;
+  const entries = [];
+
+  // Ensure the decompressed data has the correct tree header
+  if (!decompressedData.slice(0, 4).equals(Buffer.from('tree'))) {
+    throw new Error("Invalid tree object format");
+  }
+
+  // Skip the 'tree <size>\0' header
+  index = decompressedData.indexOf(0) + 1;
+
+  while (index < decompressedData.length) {
+    // Find mode
+    const modeEnd = decompressedData.indexOf(32, index); // Space ' ' delimiter
+    const mode = decompressedData.slice(index, modeEnd).toString(); // Mode is a string
+
+    // Find name
+    const nameEnd = decompressedData.indexOf(0, modeEnd + 1); // Null byte '\0' delimiter
+    const name = decompressedData.slice(modeEnd + 1, nameEnd).toString(); // Name is a string
+
+    entries.push(name);
+
+    // Advance index past the entry (mode + name + null byte + 20-byte SHA1)
+    index = nameEnd + 1 + 20; // Move past the SHA-1 hash
+  }
+
+  // Alphabetical sorting
+  entries.sort();
+
+  // Output each name
+  entries.forEach((entry) => console.log(entry));
+}
